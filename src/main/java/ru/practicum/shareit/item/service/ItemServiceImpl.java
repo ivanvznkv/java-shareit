@@ -4,12 +4,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.AccessDeniedException;
-import ru.practicum.shareit.item.dto.ItemDto;
+import ru.practicum.shareit.item.dto.ItemCreateRequest;
+import ru.practicum.shareit.item.dto.ItemResponseDto;
+import ru.practicum.shareit.item.dto.ItemUpdateRequest;
 import ru.practicum.shareit.item.dto.ItemMapper;
 import ru.practicum.shareit.item.model.Item;
 import ru.practicum.shareit.item.storage.InMemoryItemStorage;
-import ru.practicum.shareit.request.model.ItemRequest;
-import ru.practicum.shareit.request.storage.InMemoryItemRequestStorage;
 import ru.practicum.shareit.user.model.User;
 import ru.practicum.shareit.user.storage.InMemoryUserStorage;
 
@@ -21,29 +21,22 @@ import java.util.stream.Collectors;
 public class ItemServiceImpl implements ItemService {
     private final InMemoryItemStorage itemStorage;
     private final InMemoryUserStorage userStorage;
-    private final InMemoryItemRequestStorage requestStorage;
 
     @Override
-    public ItemDto createItem(Long ownerId, ItemDto itemDto) {
+    public ItemResponseDto createItem(Long ownerId, ItemCreateRequest createRequest) {
         User owner = userStorage.findById(ownerId)
                 .orElseThrow(() -> new NotFoundException("Пользователь с id " + ownerId + " не найден"));
 
-        ItemRequest request = null;
-        if (itemDto.getRequestId() != null) {
-            request = requestStorage.findById(itemDto.getRequestId())
-                    .orElseThrow(() -> new NotFoundException("Запрос вещи с id " + itemDto.getRequestId() + " не найден"));
-        }
-
-        Item item = ItemMapper.fromItemDto(itemDto);
-        item.setOwner(owner);
-        item.setRequest(request);
-
+        Item item = ItemMapper.fromCreateRequest(createRequest, owner, null);
         Item createdItem = itemStorage.create(item);
-        return ItemMapper.toItemDto(createdItem);
+        return ItemMapper.toResponseDto(createdItem);
     }
 
     @Override
-    public ItemDto updateItem(Long itemId, Long ownerId, ItemDto itemDto) {
+    public ItemResponseDto updateItem(Long itemId, Long ownerId, ItemUpdateRequest updateRequest) {
+        User owner = userStorage.findById(ownerId)
+                .orElseThrow(() -> new NotFoundException("Пользователь с id " + ownerId + " не найден"));
+
         Item existingItem = itemStorage.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Вещь с id " + itemId + " не найдена"));
 
@@ -51,41 +44,36 @@ public class ItemServiceImpl implements ItemService {
             throw new AccessDeniedException("Пользователь с id " + ownerId + " не является владельцем вещи с id " + itemId);
         }
 
-        if (itemDto.getName() != null) {
-            existingItem.setName(itemDto.getName());
-        }
-        if (itemDto.getDescription() != null) {
-            existingItem.setDescription(itemDto.getDescription());
-        }
-        if (itemDto.getAvailable() != null) {
-            existingItem.setAvailable(itemDto.getAvailable());
-        }
+        ItemMapper.updateItemFromRequest(updateRequest, existingItem);
 
         Item updatedItem = itemStorage.update(existingItem);
-        return ItemMapper.toItemDto(updatedItem);
+        return ItemMapper.toResponseDto(updatedItem);
     }
 
     @Override
-    public ItemDto getItemById(Long itemId) {
+    public ItemResponseDto getItemById(Long itemId) {
         Item item = itemStorage.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Вещь с id " + itemId + " не найдена"));
-        return ItemMapper.toItemDto(item);
+        return ItemMapper.toResponseDto(item);
     }
 
     @Override
-    public List<ItemDto> getItemsByOwner(Long ownerId) {
+    public List<ItemResponseDto> getItemsByOwner(Long ownerId) {
         userStorage.findById(ownerId)
                 .orElseThrow(() -> new NotFoundException("Пользователь с id " + ownerId + " не найден"));
 
         return itemStorage.findByOwner(ownerId).stream()
-                .map(ItemMapper::toItemDto)
+                .map(ItemMapper::toResponseDto)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public List<ItemDto> searchItems(String text) {
-        return itemStorage.search(text).stream()
-                .map(ItemMapper::toItemDto)
+    public List<ItemResponseDto> searchItems(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return List.of();
+        }
+        return itemStorage.search(text.trim()).stream()
+                .map(ItemMapper::toResponseDto)
                 .collect(Collectors.toList());
     }
 }

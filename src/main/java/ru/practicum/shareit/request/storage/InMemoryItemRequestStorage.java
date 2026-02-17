@@ -7,7 +7,7 @@ import ru.practicum.shareit.request.model.ItemRequest;
 import java.util.*;
 
 @Repository
-public class InMemoryItemRequestStorage {
+public class InMemoryItemRequestStorage implements ItemRequestStorage {
     private final Map<Long, ItemRequest> requests = new HashMap<>();
     private long idCounter = 1;
 

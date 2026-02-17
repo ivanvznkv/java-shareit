@@ -8,7 +8,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Repository
-public class InMemoryItemStorage {
+public class InMemoryItemStorage implements ItemStorage {
     private final Map<Long, Item> items = new HashMap<>();
     private long idCounter = 1;
 
@@ -39,7 +39,7 @@ public class InMemoryItemStorage {
     }
 
     public List<Item> search(String text) {
-        if (text == null || text.trim().isEmpty()) {
+        if (text == null || text.isBlank()) {
             return Collections.emptyList();
         }
 

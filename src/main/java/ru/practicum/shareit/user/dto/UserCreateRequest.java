@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserDto {
+public class UserCreateRequest {
     private Long id;
     @NotBlank(message = "Имя не может быть пустым")
     private String name;

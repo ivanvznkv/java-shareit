@@ -7,7 +7,7 @@ import ru.practicum.shareit.exception.NotFoundException;
 import java.util.*;
 
 @Repository
-public class InMemoryBookingStorage {
+public class InMemoryBookingStorage implements BookingStorage {
     private final Map<Long, Booking> bookings = new HashMap<>();
     private long idCounter = 1;
 

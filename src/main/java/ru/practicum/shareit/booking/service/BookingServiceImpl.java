@@ -4,7 +4,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.practicum.shareit.booking.model.Booking;
 import ru.practicum.shareit.booking.model.BookingStatus;
-import ru.practicum.shareit.booking.dto.BookingDto;
+import ru.practicum.shareit.booking.dto.BookingCreateRequest;
+import ru.practicum.shareit.booking.dto.BookingResponseDto;
+import ru.practicum.shareit.booking.dto.BookingUpdateRequest;
 import ru.practicum.shareit.booking.dto.BookingMapper;
 import ru.practicum.shareit.booking.storage.InMemoryBookingStorage;
 import ru.practicum.shareit.exception.NotFoundException;
@@ -23,50 +25,42 @@ public class BookingServiceImpl implements BookingService {
     private final InMemoryItemStorage itemStorage;
 
     @Override
-    public BookingDto createBooking(BookingDto bookingDto, Long bookerId) {
+    public BookingResponseDto createBooking(BookingCreateRequest createRequest, Long bookerId) {
         User booker = userStorage.findById(bookerId)
                 .orElseThrow(() -> new NotFoundException("Пользователь с id " + bookerId + " не найден"));
 
-        Item item = itemStorage.findById(bookingDto.getItemId())
-                .orElseThrow(() -> new NotFoundException("Вещь с id " + bookingDto.getItemId() + " не найдена"));
+        Item item = itemStorage.findById(createRequest.getItemId())
+                .orElseThrow(() -> new NotFoundException("Вещь с id " + createRequest.getItemId() + " не найдена"));
 
         if (!Boolean.TRUE.equals(item.getAvailable())) {
-            throw new ValidationException("Вещь с id " + bookingDto.getItemId() + " недоступна для бронирования");
+            throw new ValidationException("Вещь с id " + createRequest.getItemId() + " недоступна для бронирования");
         }
 
         if (item.getOwner().getId().equals(bookerId)) {
             throw new AccessDeniedException("Пользователь не может бронировать свою собственную вещь");
         }
 
-        Booking booking = BookingMapper.fromBookingDto(bookingDto, item, booker);
+        Booking booking = BookingMapper.fromCreateRequest(createRequest, item, booker);
         booking.setStatus(BookingStatus.WAITING);
         Booking createdBooking = bookingStorage.create(booking);
-        return BookingMapper.toBookingDto(createdBooking);
+        return BookingMapper.toResponseDto(createdBooking);
     }
 
     @Override
-    public BookingDto updateBooking(Long bookingId, BookingDto bookingDto) {
+    public BookingResponseDto updateBooking(Long bookingId, BookingUpdateRequest updateRequest) {
         Booking existingBooking = bookingStorage.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Бронирование с id " + bookingId + " не найдено"));
 
-        if (bookingDto.getStart() != null) {
-            existingBooking.setStart(bookingDto.getStart());
-        }
-        if (bookingDto.getEnd() != null) {
-            existingBooking.setEnd(bookingDto.getEnd());
-        }
-        if (bookingDto.getStatus() != null) {
-            existingBooking.setStatus(bookingDto.getStatus());
-        }
+        BookingMapper.updateBookingFromRequest(updateRequest, existingBooking);
 
         Booking updatedBooking = bookingStorage.update(existingBooking);
-        return BookingMapper.toBookingDto(updatedBooking);
+        return BookingMapper.toResponseDto(updatedBooking);
     }
 
     @Override
-    public BookingDto getBookingById(Long bookingId) {
+    public BookingResponseDto getBookingById(Long bookingId) {
         Booking booking = bookingStorage.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Бронирование с id " + bookingId + " не найдено"));
-        return BookingMapper.toBookingDto(booking);
+        return BookingMapper.toResponseDto(booking);
     }
 }

@@ -4,7 +4,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.request.model.ItemRequest;
-import ru.practicum.shareit.request.dto.ItemRequestDto;
+import ru.practicum.shareit.request.dto.ItemRequestCreateRequest;
+import ru.practicum.shareit.request.dto.ItemRequestResponseDto;
+import ru.practicum.shareit.request.dto.ItemRequestUpdateRequest;
 import ru.practicum.shareit.request.dto.ItemRequestMapper;
 import ru.practicum.shareit.request.storage.InMemoryItemRequestStorage;
 import ru.practicum.shareit.user.model.User;
@@ -17,35 +19,30 @@ public class ItemRequestServiceImpl implements ItemRequestService {
     private final InMemoryUserStorage userStorage;
 
     @Override
-    public ItemRequestDto createItemRequest(ItemRequestDto itemRequestDto, Long requestorId) {
+    public ItemRequestResponseDto createItemRequest(ItemRequestCreateRequest createRequest, Long requestorId) {
         User requestor = userStorage.findById(requestorId)
                 .orElseThrow(() -> new NotFoundException("Пользователь с id " + requestorId + " не найден"));
 
-        ItemRequest itemRequest = ItemRequestMapper.fromItemRequestDto(itemRequestDto, requestor);
+        ItemRequest itemRequest = ItemRequestMapper.fromCreateRequest(createRequest, requestor);
         ItemRequest createdRequest = requestStorage.create(itemRequest);
-        return ItemRequestMapper.toItemRequestDto(createdRequest);
+        return ItemRequestMapper.toResponseDto(createdRequest);
     }
 
     @Override
-    public ItemRequestDto updateItemRequest(Long requestId, ItemRequestDto itemRequestDto) {
+    public ItemRequestResponseDto updateItemRequest(Long requestId, ItemRequestUpdateRequest updateRequest) {
         ItemRequest existingRequest = requestStorage.findById(requestId)
                 .orElseThrow(() -> new NotFoundException("Запрос вещи с id " + requestId + " не найден"));
 
-        if (itemRequestDto.getDescription() != null) {
-            existingRequest.setDescription(itemRequestDto.getDescription());
-        }
-        if (itemRequestDto.getCreated() != null) {
-            existingRequest.setCreated(itemRequestDto.getCreated());
-        }
+        ItemRequestMapper.updateRequestFromRequest(updateRequest, existingRequest);
 
         ItemRequest updatedRequest = requestStorage.update(existingRequest);
-        return ItemRequestMapper.toItemRequestDto(updatedRequest);
+        return ItemRequestMapper.toResponseDto(updatedRequest);
     }
 
     @Override
-    public ItemRequestDto getItemRequestById(Long requestId) {
+    public ItemRequestResponseDto getItemRequestById(Long requestId) {
         ItemRequest itemRequest = requestStorage.findById(requestId)
                 .orElseThrow(() -> new NotFoundException("Запрос вещи с id " + requestId + " не найден"));
-        return ItemRequestMapper.toItemRequestDto(itemRequest);
+        return ItemRequestMapper.toResponseDto(itemRequest);
     }
 }
