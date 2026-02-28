@@ -46,6 +46,13 @@ public class BookingServiceImpl implements BookingService {
             throw new AccessDeniedException("Пользователь не может бронировать свою собственную вещь");
         }
 
+        if (bookingRepository.existsOverlappingBookings(item.getId(),
+                createRequest.getStart(),
+                createRequest.getEnd(),
+                List.of(BookingStatus.APPROVED, BookingStatus.WAITING))) {
+            throw new ValidationException("Вещь уже забронирована на указанные даты");
+        }
+
         Booking booking = BookingMapper.fromCreateRequest(createRequest, item, booker);
         booking.setStatus(BookingStatus.WAITING);
         Booking saved = bookingRepository.save(booking);
@@ -54,6 +61,9 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public BookingResponseDto getBookingById(Long bookingId, Long userId) {
+        userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Пользователь с id " + userId + " не найден"));
+
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Бронирование с id " + bookingId + " не найдено"));
 

@@ -8,6 +8,7 @@ import ru.practicum.shareit.booking.model.Booking;
 import ru.practicum.shareit.booking.model.BookingStatus;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
@@ -41,4 +42,20 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findNextBooking(@Param("itemId") Long itemId, @Param("now") LocalDateTime now);
 
     List<Booking> findByBookerIdAndItemIdAndStatus(Long bookerId, Long itemId, BookingStatus status);
+
+    @Query("SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END FROM Booking b " +
+            "WHERE b.item.id = :itemId AND b.status IN :statuses " +
+            "AND b.start < :end AND b.end > :start")
+    boolean existsOverlappingBookings(@Param("itemId") Long itemId,
+                                      @Param("start") LocalDateTime start,
+                                      @Param("end") LocalDateTime end,
+                                      @Param("statuses") Collection<BookingStatus> statuses);
+
+    @Query("SELECT b FROM Booking b WHERE b.item.id IN :itemIds AND b.status = 'APPROVED' AND b.end < :now ORDER BY b.end DESC")
+    List<Booking> findAllLastBookings(@Param("itemIds") List<Long> itemIds, @Param("now") LocalDateTime now);
+
+    @Query("SELECT b FROM Booking b WHERE b.item.id IN :itemIds AND b.status = 'APPROVED' AND b.start > :now ORDER BY b.start ASC")
+    List<Booking> findAllNextBookings(@Param("itemIds") List<Long> itemIds, @Param("now") LocalDateTime now);
+
+    List<Booking> findByBookerIdAndItemIdAndStatusIn(Long bookerId, Long itemId, Collection<BookingStatus> statuses);
 }

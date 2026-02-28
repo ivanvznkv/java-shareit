@@ -2,6 +2,7 @@ package ru.practicum.shareit.item.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import ru.practicum.shareit.booking.dto.BookingMapper;
 import ru.practicum.shareit.booking.dto.BookingShortDto;
 import ru.practicum.shareit.booking.model.Booking;
 import ru.practicum.shareit.booking.model.BookingStatus;
@@ -64,49 +65,29 @@ public class ItemServiceImpl implements ItemService {
     public ItemDetailedDto getItemById(Long itemId, Long userId) {
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Вещь не найдена"));
-        ItemDetailedDto dto = new ItemDetailedDto();
-        dto.setId(item.getId());
-        dto.setName(item.getName());
-        dto.setDescription(item.getDescription());
-        dto.setAvailable(item.getAvailable());
-        dto.setRequestId(item.getRequest() != null ? item.getRequest().getId() : null);
 
         LocalDateTime now = LocalDateTime.now();
         boolean isOwner = item.getOwner().getId().equals(userId);
 
+        BookingShortDto lastBooking = null;
+        BookingShortDto nextBooking = null;
+
         if (isOwner) {
             List<Booking> lastBookings = bookingRepository.findLastBooking(itemId, now);
             if (!lastBookings.isEmpty()) {
-                Booking last = lastBookings.get(0);
-                BookingShortDto lastDto = new BookingShortDto();
-                lastDto.setId(last.getId());
-                lastDto.setStart(last.getStart());
-                lastDto.setEnd(last.getEnd());
-                lastDto.setBookerId(last.getBooker().getId());
-                dto.setLastBooking(lastDto);
+                lastBooking = BookingMapper.toShortDto(lastBookings.get(0));
             }
-
             List<Booking> nextBookings = bookingRepository.findNextBooking(itemId, now);
             if (!nextBookings.isEmpty()) {
-                Booking next = nextBookings.get(0);
-                BookingShortDto nextDto = new BookingShortDto();
-                nextDto.setId(next.getId());
-                nextDto.setStart(next.getStart());
-                nextDto.setEnd(next.getEnd());
-                nextDto.setBookerId(next.getBooker().getId());
-                dto.setNextBooking(nextDto);
+                nextBooking = BookingMapper.toShortDto(nextBookings.get(0));
             }
-        } else {
-            dto.setLastBooking(null);
-            dto.setNextBooking(null);
         }
 
         List<CommentResponseDto> comments = commentRepository.findByItemIdOrderByCreatedDesc(itemId).stream()
                 .map(CommentMapper::toResponseDto)
                 .collect(Collectors.toList());
-        dto.setComments(comments);
 
-        return dto;
+        return ItemMapper.toDetailedDto(item, lastBooking, nextBooking, comments);
     }
 
     @Override
@@ -116,9 +97,33 @@ public class ItemServiceImpl implements ItemService {
         }
 
         List<Item> items = itemRepository.findByOwnerId(ownerId);
-        LocalDateTime now = LocalDateTime.now();
+        if (items.isEmpty()) {
+            return Collections.emptyList();
+        }
 
+        LocalDateTime now = LocalDateTime.now();
         List<Long> itemIds = items.stream().map(Item::getId).collect(Collectors.toList());
+
+        List<Booking> lastBookings = bookingRepository.findAllLastBookings(itemIds, now);
+        Map<Long, BookingShortDto> lastBookingMap = lastBookings.stream()
+                .collect(Collectors.groupingBy(
+                        b -> b.getItem().getId(),
+                        Collectors.collectingAndThen(
+                                Collectors.toList(),
+                                list -> BookingMapper.toShortDto(list.get(0))
+                        )
+                ));
+
+        List<Booking> nextBookings = bookingRepository.findAllNextBookings(itemIds, now);
+        Map<Long, BookingShortDto> nextBookingMap = nextBookings.stream()
+                .collect(Collectors.groupingBy(
+                        b -> b.getItem().getId(),
+                        Collectors.collectingAndThen(
+                                Collectors.toList(),
+                                list -> BookingMapper.toShortDto(list.get(0))
+                        )
+                ));
+
         List<Comment> comments = commentRepository.findByItemIdIn(itemIds);
         Map<Long, List<CommentResponseDto>> commentsByItemId = comments.stream()
                 .collect(Collectors.groupingBy(
@@ -127,40 +132,12 @@ public class ItemServiceImpl implements ItemService {
                 ));
 
         return items.stream()
-                .map(item -> {
-                    ItemWithBookingsDto dto = new ItemWithBookingsDto();
-                    dto.setId(item.getId());
-                    dto.setName(item.getName());
-                    dto.setDescription(item.getDescription());
-                    dto.setAvailable(item.getAvailable());
-                    dto.setRequestId(item.getRequest() != null ? item.getRequest().getId() : null);
-
-                    List<Booking> lastBookings = bookingRepository.findLastBooking(item.getId(), now);
-                    if (!lastBookings.isEmpty()) {
-                        Booking last = lastBookings.get(0);
-                        BookingShortDto lastDto = new BookingShortDto();
-                        lastDto.setId(last.getId());
-                        lastDto.setStart(last.getStart());
-                        lastDto.setEnd(last.getEnd());
-                        lastDto.setBookerId(last.getBooker().getId());
-                        dto.setLastBooking(lastDto);
-                    }
-
-                    List<Booking> nextBookings = bookingRepository.findNextBooking(item.getId(), now);
-                    if (!nextBookings.isEmpty()) {
-                        Booking next = nextBookings.get(0);
-                        BookingShortDto nextDto = new BookingShortDto();
-                        nextDto.setId(next.getId());
-                        nextDto.setStart(next.getStart());
-                        nextDto.setEnd(next.getEnd());
-                        nextDto.setBookerId(next.getBooker().getId());
-                        dto.setNextBooking(nextDto);
-                    }
-
-                    dto.setComments(commentsByItemId.getOrDefault(item.getId(), Collections.emptyList()));
-
-                    return dto;
-                })
+                .map(item -> ItemMapper.toWithBookingsDto(
+                        item,
+                        lastBookingMap.get(item.getId()),
+                        nextBookingMap.get(item.getId()),
+                        commentsByItemId.getOrDefault(item.getId(), Collections.emptyList())
+                ))
                 .collect(Collectors.toList());
     }
 
@@ -182,20 +159,16 @@ public class ItemServiceImpl implements ItemService {
                 .orElseThrow(() -> new NotFoundException("Пользователь с id " + authorId + " не найден"));
 
         LocalDateTime now = LocalDateTime.now();
-        List<Booking> completed = bookingRepository.findByBookerIdAndItemIdAndStatus(authorId, itemId, BookingStatus.APPROVED);
-        boolean hasCompletedBooking = completed.stream()
+        List<Booking> relevantBookings = bookingRepository.findByBookerIdAndItemIdAndStatusIn(
+                authorId, itemId, List.of(BookingStatus.APPROVED, BookingStatus.WAITING));
+        boolean hasCompletedBooking = relevantBookings.stream()
                 .anyMatch(b -> !b.getEnd().isAfter(now));
 
         if (!hasCompletedBooking) {
             throw new ValidationException("Пользователь не может оставить отзыв, так как не брал вещь в аренду или аренда ещё не завершена");
         }
 
-        Comment comment = new Comment();
-        comment.setText(request.getText());
-        comment.setItem(item);
-        comment.setAuthor(author);
-        comment.setCreated(now);
-
+        Comment comment = CommentMapper.fromCreateRequest(request, item, author, now);
         Comment saved = commentRepository.save(comment);
         return CommentMapper.toResponseDto(saved);
     }
