@@ -9,10 +9,13 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.item.dto.ItemCreateRequest;
 import ru.practicum.shareit.item.dto.ItemResponseDto;
-import ru.practicum.shareit.request.dto.ItemRequestCreateRequest;
-import ru.practicum.shareit.request.service.ItemRequestService;
-import ru.practicum.shareit.user.dto.UserCreateRequest;
-import ru.practicum.shareit.user.service.UserService;
+import ru.practicum.shareit.item.model.Item;
+import ru.practicum.shareit.request.model.ItemRequest;
+import ru.practicum.shareit.request.storage.ItemRequestRepository;
+import ru.practicum.shareit.user.model.User;
+import ru.practicum.shareit.user.storage.UserRepository;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -26,23 +29,33 @@ class ItemServiceImplIntegrationTest {
     private ItemService itemService;
 
     @Autowired
-    private UserService userService;
+    private UserRepository userRepository;
 
     @Autowired
-    private ItemRequestService itemRequestService;
+    private ItemRequestRepository itemRequestRepository;
 
     private Long ownerId;
     private Long requestId;
 
     @BeforeEach
     void setUp() {
-        UserCreateRequest ownerRequest = new UserCreateRequest(null, "Владелец", "owner@example.com");
-        ownerId = userService.createUser(ownerRequest).getId();
+        User owner = new User();
+        owner.setName("Владелец");
+        owner.setEmail("owner@example.com");
+        owner = userRepository.save(owner);
+        ownerId = owner.getId();
 
-        UserCreateRequest requesterRequest = new UserCreateRequest(null, "Заявитель", "requester@example.com");
-        Long requesterId = userService.createUser(requesterRequest).getId();
-        ItemRequestCreateRequest reqCreate = new ItemRequestCreateRequest("Нужен инструмент");
-        requestId = itemRequestService.createItemRequest(reqCreate, requesterId).getId();
+        User requester = new User();
+        requester.setName("Заявитель");
+        requester.setEmail("requester@example.com");
+        requester = userRepository.save(requester);
+
+        ItemRequest request = new ItemRequest();
+        request.setDescription("Нужен инструмент");
+        request.setRequestor(requester);
+        request.setCreated(LocalDateTime.now());
+        request = itemRequestRepository.save(request);
+        requestId = request.getId();
     }
 
     @Test

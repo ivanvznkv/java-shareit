@@ -9,8 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.request.dto.ItemRequestCreateRequest;
 import ru.practicum.shareit.request.dto.ItemRequestResponseDto;
-import ru.practicum.shareit.user.dto.UserCreateRequest;
-import ru.practicum.shareit.user.service.UserService;
+import ru.practicum.shareit.user.model.User;
+import ru.practicum.shareit.user.storage.UserRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -24,14 +24,17 @@ class ItemRequestServiceImplIntegrationTest {
     private ItemRequestService itemRequestService;
 
     @Autowired
-    private UserService userService;
+    private UserRepository userRepository;
 
     private Long userId;
 
     @BeforeEach
     void setUp() {
-        UserCreateRequest userRequest = new UserCreateRequest(null, "Тестовый пользователь", "test@example.com");
-        userId = userService.createUser(userRequest).getId();
+        User user = new User();
+        user.setName("Тестовый пользователь");
+        user.setEmail("test@example.com");
+        user = userRepository.save(user);
+        userId = user.getId();
     }
 
     @Test
@@ -62,8 +65,11 @@ class ItemRequestServiceImplIntegrationTest {
 
     @Test
     void getOtherRequests_shouldReturnRequestsOfOtherUsers() {
-        UserCreateRequest otherUserRequest = new UserCreateRequest(null, "Другой пользователь", "other@example.com");
-        Long otherUserId = userService.createUser(otherUserRequest).getId();
+        User otherUser = new User();
+        otherUser.setName("Другой пользователь");
+        otherUser.setEmail("other@example.com");
+        otherUser = userRepository.save(otherUser);
+        Long otherUserId = otherUser.getId();
 
         ItemRequestCreateRequest createRequest = new ItemRequestCreateRequest("Нужна пила");
         itemRequestService.createItemRequest(createRequest, otherUserId);

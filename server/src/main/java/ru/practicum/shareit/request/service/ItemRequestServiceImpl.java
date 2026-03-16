@@ -11,7 +11,9 @@ import ru.practicum.shareit.request.storage.ItemRequestRepository;
 import ru.practicum.shareit.user.model.User;
 import ru.practicum.shareit.user.storage.UserRepository;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -55,10 +57,22 @@ public class ItemRequestServiceImpl implements ItemRequestService {
             throw new NotFoundException("Пользователь с id " + userId + " не найден");
         }
         List<ItemRequest> requests = requestRepository.findByRequestorIdOrderByCreatedDesc(userId);
+        if (requests.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> requestIds = requests.stream()
+                .map(ItemRequest::getId)
+                .collect(Collectors.toList());
+
+        List<Item> items = itemRepository.findByRequestIdIn(requestIds);
+        Map<Long, List<Item>> itemsByRequestId = items.stream()
+                .collect(Collectors.groupingBy(item -> item.getRequest().getId()));
+
         return requests.stream()
                 .map(request -> {
-                    List<Item> items = itemRepository.findByRequestId(request.getId());
-                    return ItemRequestMapper.toResponseDtoWithItems(request, items);
+                    List<Item> itemsForRequest = itemsByRequestId.getOrDefault(request.getId(), Collections.emptyList());
+                    return ItemRequestMapper.toResponseDtoWithItems(request, itemsForRequest);
                 })
                 .collect(Collectors.toList());
     }
@@ -69,10 +83,22 @@ public class ItemRequestServiceImpl implements ItemRequestService {
             throw new NotFoundException("Пользователь с id " + userId + " не найден");
         }
         List<ItemRequest> requests = requestRepository.findByRequestorIdNotOrderByCreatedDesc(userId);
+        if (requests.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> requestIds = requests.stream()
+                .map(ItemRequest::getId)
+                .collect(Collectors.toList());
+
+        List<Item> items = itemRepository.findByRequestIdIn(requestIds);
+        Map<Long, List<Item>> itemsByRequestId = items.stream()
+                .collect(Collectors.groupingBy(item -> item.getRequest().getId()));
+
         return requests.stream()
                 .map(request -> {
-                    List<Item> items = itemRepository.findByRequestId(request.getId());
-                    return ItemRequestMapper.toResponseDtoWithItems(request, items);
+                    List<Item> itemsForRequest = itemsByRequestId.getOrDefault(request.getId(), Collections.emptyList());
+                    return ItemRequestMapper.toResponseDtoWithItems(request, itemsForRequest);
                 })
                 .collect(Collectors.toList());
     }

@@ -110,10 +110,8 @@ public class ItemServiceImpl implements ItemService {
         LocalDateTime now = LocalDateTime.now();
         List<Long> itemIds = items.stream().map(Item::getId).collect(Collectors.toList());
 
-        // Получаем все APPROVED бронирования для всех вещей владельца
         List<Booking> allApprovedBookings = bookingRepository.findAllByItemIdInAndStatusOrderByStartDesc(itemIds, BookingStatus.APPROVED);
 
-        // Группируем бронирования по вещам
         Map<Long, List<Booking>> bookingsByItem = allApprovedBookings.stream()
                 .collect(Collectors.groupingBy(b -> b.getItem().getId()));
 
@@ -123,13 +121,11 @@ public class ItemServiceImpl implements ItemService {
         for (Long itemId : itemIds) {
             List<Booking> itemBookings = bookingsByItem.getOrDefault(itemId, Collections.emptyList());
 
-            // Ищем последнее завершённое бронирование (end < now)
             Booking last = itemBookings.stream()
                     .filter(b -> b.getEnd().isBefore(now))
                     .max(Comparator.comparing(Booking::getEnd))
                     .orElse(null);
 
-            // Ищем следующее будущее бронирование (start > now)
             Booking next = itemBookings.stream()
                     .filter(b -> b.getStart().isAfter(now))
                     .min(Comparator.comparing(Booking::getStart))
@@ -159,57 +155,6 @@ public class ItemServiceImpl implements ItemService {
                 ))
                 .collect(Collectors.toList());
     }
-
-//    @Override
-//    public List<ItemWithBookingsDto> getItemsByOwner(Long ownerId) {
-//        if (!userRepository.existsById(ownerId)) {
-//            throw new NotFoundException("Пользователь не найден");
-//        }
-//
-//        List<Item> items = itemRepository.findByOwnerId(ownerId);
-//        if (items.isEmpty()) {
-//            return Collections.emptyList();
-//        }
-//
-//        LocalDateTime now = LocalDateTime.now();
-//        List<Long> itemIds = items.stream().map(Item::getId).collect(Collectors.toList());
-//
-//        List<Booking> lastBookings = bookingRepository.findAllLastBookings(itemIds, now);
-//        Map<Long, BookingShortDto> lastBookingMap = lastBookings.stream()
-//                .collect(Collectors.groupingBy(
-//                        b -> b.getItem().getId(),
-//                        Collectors.collectingAndThen(
-//                                Collectors.toList(),
-//                                list -> BookingMapper.toShortDto(list.get(0))
-//                        )
-//                ));
-//
-//        List<Booking> nextBookings = bookingRepository.findAllNextBookings(itemIds, now);
-//        Map<Long, BookingShortDto> nextBookingMap = nextBookings.stream()
-//                .collect(Collectors.groupingBy(
-//                        b -> b.getItem().getId(),
-//                        Collectors.collectingAndThen(
-//                                Collectors.toList(),
-//                                list -> BookingMapper.toShortDto(list.get(0))
-//                        )
-//                ));
-//
-//        List<Comment> comments = commentRepository.findByItemIdIn(itemIds);
-//        Map<Long, List<CommentResponseDto>> commentsByItemId = comments.stream()
-//                .collect(Collectors.groupingBy(
-//                        c -> c.getItem().getId(),
-//                        Collectors.mapping(CommentMapper::toResponseDto, Collectors.toList())
-//                ));
-//
-//        return items.stream()
-//                .map(item -> ItemMapper.toWithBookingsDto(
-//                        item,
-//                        lastBookingMap.get(item.getId()),
-//                        nextBookingMap.get(item.getId()),
-//                        commentsByItemId.getOrDefault(item.getId(), Collections.emptyList())
-//                ))
-//                .collect(Collectors.toList());
-//    }
 
     @Override
     public List<ItemResponseDto> searchItems(String text) {

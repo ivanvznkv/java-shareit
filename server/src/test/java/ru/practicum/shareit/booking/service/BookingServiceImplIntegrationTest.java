@@ -9,14 +9,16 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.booking.dto.BookingCreateRequest;
 import ru.practicum.shareit.booking.dto.BookingResponseDto;
 import ru.practicum.shareit.booking.dto.BookingState;
+import ru.practicum.shareit.booking.model.Booking;
 import ru.practicum.shareit.booking.model.BookingStatus;
+import ru.practicum.shareit.booking.storage.BookingRepository;
 import ru.practicum.shareit.exception.AccessDeniedException;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
-import ru.practicum.shareit.item.dto.ItemCreateRequest;
-import ru.practicum.shareit.item.service.ItemService;
-import ru.practicum.shareit.user.dto.UserCreateRequest;
-import ru.practicum.shareit.user.service.UserService;
+import ru.practicum.shareit.item.model.Item;
+import ru.practicum.shareit.item.storage.ItemRepository;
+import ru.practicum.shareit.user.model.User;
+import ru.practicum.shareit.user.storage.UserRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,10 +35,10 @@ class BookingServiceImplIntegrationTest {
     private BookingService bookingService;
 
     @Autowired
-    private UserService userService;
+    private UserRepository userRepository;
 
     @Autowired
-    private ItemService itemService;
+    private ItemRepository itemRepository;
 
     private Long ownerId;
     private Long bookerId;
@@ -44,14 +46,25 @@ class BookingServiceImplIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        UserCreateRequest ownerRequest = new UserCreateRequest(null, "Владелец", "owner@example.com");
-        ownerId = userService.createUser(ownerRequest).getId();
+        User owner = new User();
+        owner.setName("Владелец");
+        owner.setEmail("owner@example.com");
+        owner = userRepository.save(owner);
+        ownerId = owner.getId();
 
-        ItemCreateRequest itemCreateRequest = new ItemCreateRequest("Молоток", "Тяжелый молоток", true, null);
-        itemId = itemService.createItem(ownerId, itemCreateRequest).getId();
+        Item item = new Item();
+        item.setName("Молоток");
+        item.setDescription("Тяжелый молоток");
+        item.setAvailable(true);
+        item.setOwner(owner);
+        item = itemRepository.save(item);
+        itemId = item.getId();
 
-        UserCreateRequest bookerRequest = new UserCreateRequest(null, "Бронирующий", "booker@example.com");
-        bookerId = userService.createUser(bookerRequest).getId();
+        User booker = new User();
+        booker.setName("Бронирующий");
+        booker.setEmail("booker@example.com");
+        booker = userRepository.save(booker);
+        bookerId = booker.getId();
     }
 
     @Test
@@ -88,8 +101,13 @@ class BookingServiceImplIntegrationTest {
 
     @Test
     void createBooking_itemNotAvailable_shouldThrow() {
-        ItemCreateRequest itemCreateRequest = new ItemCreateRequest("Молоток", "Тяжелый молоток", false, null);
-        Long unavailableItemId = itemService.createItem(ownerId, itemCreateRequest).getId();
+        Item unavailableItem = new Item();
+        unavailableItem.setName("Недоступная вещь");
+        unavailableItem.setDescription("Описание");
+        unavailableItem.setAvailable(false);
+        unavailableItem.setOwner(userRepository.findById(ownerId).orElseThrow());
+        unavailableItem = itemRepository.save(unavailableItem);
+        Long unavailableItemId = unavailableItem.getId();
 
         LocalDateTime now = LocalDateTime.now();
         BookingCreateRequest createRequest = new BookingCreateRequest(
